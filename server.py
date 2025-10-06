@@ -543,29 +543,46 @@ def get_comprehensive_ad_report(
     # Get ads data
     ads_response = _make_graph_api_call(url, params)
     
-    # Now fetch insights for each ad
+    # Get insights for ALL ads in one API call (much faster and more reliable)
+    insights_by_ad_id = {}
+    if 'data' in ads_response and ads_response['data']:
+        # Get insights at account/campaign level with ad-level breakdown
+        if campaign_id:
+            insights_base_url = f"{FB_GRAPH_URL}/{campaign_id}/insights"
+        else:
+            insights_base_url = f"{FB_GRAPH_URL}/{act_id}/insights"
+        
+        insights_params = {
+            'access_token': access_token,
+            'level': 'ad',
+            'fields': ','.join(insight_fields),
+            'limit': limit
+        }
+        
+        if time_range:
+            insights_params['time_range'] = json.dumps(time_range)
+        elif date_preset:
+            insights_params['date_preset'] = date_preset
+        
+        try:
+            insights_response = _make_graph_api_call(insights_base_url, insights_params)
+            # Index insights by ad_id for quick lookup
+            for insight in insights_response.get('data', []):
+                ad_id = insight.get('ad_id')
+                if ad_id:
+                    insights_by_ad_id[ad_id] = insight
+        except Exception as e:
+            # If insights API fails, continue with empty insights
+            pass
+    
+    # Now process each ad and match with insights
     results = []
     if 'data' in ads_response:
         for ad in ads_response['data']:
             ad_id = ad.get('id')
             
-            # Get insights for this ad
-            insights_url = f"{FB_GRAPH_URL}/{ad_id}/insights"
-            insights_params = {
-                'access_token': access_token,
-                'fields': ','.join(insight_fields)
-            }
-            
-            if time_range:
-                insights_params['time_range'] = json.dumps(time_range)
-            elif date_preset:
-                insights_params['date_preset'] = date_preset
-            
-            try:
-                insights_response = _make_graph_api_call(insights_url, insights_params)
-                insights_data = insights_response.get('data', [{}])[0] if insights_response.get('data') else {}
-            except Exception as e:
-                insights_data = {'error': str(e)}
+            # Get pre-fetched insights for this ad
+            insights_data = insights_by_ad_id.get(ad_id, {})
             
             # Extract asset URL from creative
             asset_url = None
