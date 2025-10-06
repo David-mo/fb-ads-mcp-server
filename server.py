@@ -556,7 +556,12 @@ def get_comprehensive_ad_report(
             'access_token': access_token,
             'level': 'ad',
             'fields': ','.join(insight_fields),
-            'limit': limit
+            'limit': limit,
+            'filtering': json.dumps([{
+                'field': 'spend',
+                'operator': 'GREATER_THAN',
+                'value': 0
+            }])
         }
         
         if time_range:
