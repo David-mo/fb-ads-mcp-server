@@ -163,6 +163,8 @@ If you want to use the virtual environment with Claude Desktop:
 - **get_campaign_insights(campaign_id, fields, date_preset, time_range)** - Get performance metrics for a campaign
 - **get_adset_insights(adset_id, fields, date_preset)** - Get performance metrics for an ad set
 - **get_ad_insights(ad_id, fields, date_preset)** - Get performance metrics for a specific ad
+- **get_comprehensive_ad_report(act_id, date_preset, time_range, campaign_id, limit)** - Get complete ad report with all metrics (creative, performance, engagement, video)
+- **get_summary_report(act_id, date_preset, time_range, limit)** - Get lightweight summary with only key metrics (avoids context limits)
 
 ### Pagination
 
