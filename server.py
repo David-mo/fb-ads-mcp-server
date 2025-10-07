@@ -439,7 +439,6 @@ def get_ad_insights(
     return _make_graph_api_call(url, params)
 
 
-
 # =============================================================================
 # COMPREHENSIVE AD REPORT
 # =============================================================================
@@ -450,7 +449,8 @@ def get_comprehensive_ad_report(
     date_preset: Optional[str] = "last_30d",
     time_range: Optional[Dict[str, str]] = None,
     campaign_id: Optional[str] = None,
-    limit: Optional[int] = 100
+    limit: Optional[int] = 100,
+    min_spend: Optional[float] = 0
 ) -> Dict:
     """
     Get comprehensive ad performance report with all metrics and details.
@@ -462,7 +462,7 @@ def get_comprehensive_ad_report(
     - Ad Status, Delivery
     - Asset URL (image/video)
     - Reach, Impressions, Frequency
-    - Purchases, Cost Per Purchase
+    - Purchases, Cost Per Purchase (flexible based on conversion events)
     - Clicks (All), Unique Clicks, CTR, Unique CTR, CPC, CPM
     - Video metrics (3s plays, 25%/50%/75%/100% completion, ThruPlays)
     - Conversions (Add to Cart, Content Views, Checkouts Initiated)
@@ -477,24 +477,19 @@ def get_comprehensive_ad_report(
         time_range: Custom date range (e.g., {"since":"2024-01-01","until":"2024-01-31"})
         campaign_id: Optional campaign ID to filter by specific campaign
         limit: Max number of ads to retrieve (default: 100)
+        min_spend: Minimum spend threshold (default: 0, only returns ads with spend > this value)
     
     Returns:
         Dict: Comprehensive ad report with all requested fields
         
     Example:
-        To get all ads from an account for the last 30 days:
+        To get all ads with spend from an account for the last 30 days:
         get_comprehensive_ad_report("act_123456789")
         
-        To get ads from a specific campaign:
-        get_comprehensive_ad_report("act_123456789", campaign_id="6770765233220")
+        To get ads with at least $100 spend in last 7 days:
+        get_comprehensive_ad_report("act_123456789", date_preset="last_7d", min_spend=100)
     """
     access_token = _get_fb_access_token()
-    
-    # Determine the base URL - either all ads in account or ads in specific campaign
-    if campaign_id:
-        url = f"{FB_GRAPH_URL}/{campaign_id}/ads"
-    else:
-        url = f"{FB_GRAPH_URL}/{act_id}/ads"
     
     # Define all the fields we want from the ad object itself
     ad_fields = [
@@ -511,166 +506,148 @@ def get_comprehensive_ad_report(
     
     # Define all insight metrics
     insight_fields = [
-        'reach',
-        'impressions',
-        'frequency',
-        'spend',
-        'purchase',
-        'cost_per_purchase',
-        'clicks',
-        'unique_clicks',
-        'ctr',
-        'unique_ctr',
-        'cpc',
-        'cpm',
-        'video_play_actions',
-        'video_thruplay_watched_actions',
-        'video_p25_watched_actions',
-        'video_p50_watched_actions',
-        'video_p75_watched_actions',
-        'video_p100_watched_actions',
+        'reach', 'impressions', 'frequency', 'spend',
+        'clicks', 'unique_clicks', 'ctr', 'unique_ctr', 'cpc', 'cpm',
+        'video_play_actions', 'video_thruplay_watched_actions',
+        'video_p25_watched_actions', 'video_p50_watched_actions',
+        'video_p75_watched_actions', 'video_p100_watched_actions',
         'video_continuous_2_sec_watched_actions',
-        'actions',
-        'action_values'
+        'actions', 'action_values', 'cost_per_action_type'
     ]
     
-    params = {
+    # First, get all ads (or ads within a specific campaign)
+    ads_url = f"{FB_GRAPH_URL}/{campaign_id}/ads" if campaign_id else f"{FB_GRAPH_URL}/{act_id}/ads"
+    ads_params = {
         'access_token': access_token,
         'fields': ','.join(ad_fields),
         'limit': limit
     }
+    ads_response = _make_graph_api_call(ads_url, ads_params)
+    all_ads = {ad['id']: ad for ad in ads_response.get('data', [])}
     
-    # Get ads data
-    ads_response = _make_graph_api_call(url, params)
+    # Now fetch insights for all relevant ads in one call with breakdown by ad
+    insights_url = f"{FB_GRAPH_URL}/{act_id}/insights"
+    insights_params = {
+        'access_token': access_token,
+        'level': 'ad',
+        'fields': ','.join(insight_fields),
+        'limit': limit,
+        'filtering': json.dumps([{
+            'field': 'spend',
+            'operator': 'GREATER_THAN',
+            'value': min_spend
+        }])
+    }
     
-    # Get insights for ALL ads in one API call (much faster and more reliable)
-    insights_by_ad_id = {}
-    if 'data' in ads_response and ads_response['data']:
-        # Get insights at account/campaign level with ad-level breakdown
-        if campaign_id:
-            insights_base_url = f"{FB_GRAPH_URL}/{campaign_id}/insights"
-        else:
-            insights_base_url = f"{FB_GRAPH_URL}/{act_id}/insights"
-        
-        insights_params = {
-            'access_token': access_token,
-            'level': 'ad',
-            'fields': ','.join(insight_fields),
-            'limit': limit,
-            'filtering': json.dumps([{
-                'field': 'spend',
-                'operator': 'GREATER_THAN',
-                'value': 0
-            }])
-        }
-        
-        if time_range:
-            insights_params['time_range'] = json.dumps(time_range)
-        elif date_preset:
-            insights_params['date_preset'] = date_preset
-        
-        try:
-            insights_response = _make_graph_api_call(insights_base_url, insights_params)
-            # Index insights by ad_id for quick lookup
-            for insight in insights_response.get('data', []):
-                ad_id = insight.get('ad_id')
-                if ad_id:
-                    insights_by_ad_id[ad_id] = insight
-        except Exception as e:
-            # If insights API fails, continue with empty insights
-            pass
+    if time_range:
+        insights_params['time_range'] = json.dumps(time_range)
+    elif date_preset:
+        insights_params['date_preset'] = date_preset
     
-    # Now process each ad and match with insights
+    all_insights_response = _make_graph_api_call(insights_url, insights_params)
+    insights_by_ad_id = {
+        insight['ad_id']: insight
+        for insight in all_insights_response.get('data', [])
+    }
+    
     results = []
-    if 'data' in ads_response:
-        for ad in ads_response['data']:
-            ad_id = ad.get('id')
-            
-            # Get pre-fetched insights for this ad
-            insights_data = insights_by_ad_id.get(ad_id, {})
-            
-            # Extract asset URL from creative
-            asset_url = None
-            creative = ad.get('creative', {})
-            if creative:
-                # Try to get video URL or image URL
-                asset_url = creative.get('thumbnail_url') or creative.get('image_url')
-                
-                # Check object_story_spec for video
-                if not asset_url and creative.get('object_story_spec'):
-                    video_data = creative.get('object_story_spec', {}).get('video_data', {})
-                    if video_data:
-                        asset_url = f"Video ID: {video_data.get('video_id', 'N/A')}"
-            
-            # Helper function to extract action values
-            def get_action_value(actions_list, action_type):
-                if not actions_list:
-                    return None
-                for action in actions_list:
-                    if action.get('action_type') == action_type:
-                        return action.get('value')
+    for ad_id, ad in all_ads.items():
+        insights_data = insights_by_ad_id.get(ad_id, {})
+        
+        # Skip ads that didn't have spend (due to filtering in insights call)
+        if not insights_data:
+            continue
+        
+        # Extract asset URL from creative
+        asset_url = None
+        creative = ad.get('creative', {})
+        if creative:
+            asset_url = creative.get('thumbnail_url') or creative.get('image_url')
+            if not asset_url and creative.get('object_story_spec'):
+                video_data = creative.get('object_story_spec', {}).get('video_data', {})
+                if video_data:
+                    asset_url = f"Video ID: {video_data.get('video_id', 'N/A')}"
+        
+        def get_action_value(actions_list, action_type):
+            if not actions_list:
                 return None
+            for action in actions_list:
+                if action_type in action.get('action_type', ''):
+                    return action.get('value')
+            return None
+        
+        def get_cost_per_action(cost_per_actions, action_type):
+            if not cost_per_actions:
+                return None
+            for action in cost_per_actions:
+                if action_type in action.get('action_type', ''):
+                    return action.get('value')
+            return None
+        
+        actions = insights_data.get('actions', [])
+        video_actions = insights_data.get('video_play_actions', [])
+        cost_per_actions = insights_data.get('cost_per_action_type', [])
+        
+        # Try to get primary conversion (purchase first, then other conversion events)
+        purchases = (get_action_value(actions, 'purchase') or 
+                    get_action_value(actions, 'offsite_conversion.fb_pixel_purchase') or
+                    get_action_value(actions, 'offsite_conversion') or
+                    get_action_value(actions, 'onsite_conversion'))
+        
+        cost_per_purchase = (get_cost_per_action(cost_per_actions, 'purchase') or
+                            get_cost_per_action(cost_per_actions, 'offsite_conversion.fb_pixel_purchase') or
+                            get_cost_per_action(cost_per_actions, 'offsite_conversion') or
+                            get_cost_per_action(cost_per_actions, 'onsite_conversion'))
+        
+        result = {
+            'ad_creative_id': creative.get('id') if creative else None,
+            'ad_id': ad_id,
+            'ad_name': ad.get('name'),
+            'campaign_id': ad.get('campaign', {}).get('id') if ad.get('campaign') else ad.get('campaign_id'),
+            'campaign_name': ad.get('campaign', {}).get('name') if ad.get('campaign') else None,
+            'ad_set_id': ad.get('adset', {}).get('id') if ad.get('adset') else ad.get('adset_id'),
+            'ad_set_name': ad.get('adset', {}).get('name') if ad.get('adset') else None,
+            'ad_status': ad.get('status'),
+            'delivery': ad.get('effective_status'),
+            'asset_url': asset_url,
             
-            # Extract all actions
-            actions = insights_data.get('actions', [])
-            video_actions = insights_data.get('video_play_actions', [])
+            'reach': insights_data.get('reach'),
+            'impressions': insights_data.get('impressions'),
+            'frequency': insights_data.get('frequency'),
+            'purchases': purchases,
+            'cost_per_purchase': cost_per_purchase,
+            'clicks_all': insights_data.get('clicks'),
+            'unique_clicks_all': insights_data.get('unique_clicks'),
+            'ctr_all': insights_data.get('ctr'),
+            'unique_ctr_all': insights_data.get('unique_ctr'),
+            'cpc_all': insights_data.get('cpc'),
+            'cpm': insights_data.get('cpm'),
             
-            # Build comprehensive result
-            result = {
-                'ad_creative_id': creative.get('id') if creative else None,
-                'ad_id': ad_id,
-                'ad_name': ad.get('name'),
-                'campaign_id': ad.get('campaign', {}).get('id') if ad.get('campaign') else ad.get('campaign_id'),
-                'campaign_name': ad.get('campaign', {}).get('name') if ad.get('campaign') else None,
-                'ad_set_id': ad.get('adset', {}).get('id') if ad.get('adset') else ad.get('adset_id'),
-                'ad_set_name': ad.get('adset', {}).get('name') if ad.get('adset') else None,
-                'ad_status': ad.get('status'),
-                'delivery': ad.get('effective_status'),
-                'asset_url': asset_url,
-                
-                # Performance metrics
-                'reach': insights_data.get('reach'),
-                'impressions': insights_data.get('impressions'),
-                'frequency': insights_data.get('frequency'),
-                'purchases': get_action_value(actions, 'purchase') or get_action_value(actions, 'offsite_conversion.fb_pixel_purchase'),
-                'cost_per_purchase': insights_data.get('cost_per_purchase'),
-                'clicks_all': insights_data.get('clicks'),
-                'unique_clicks_all': insights_data.get('unique_clicks'),
-                'ctr_all': insights_data.get('ctr'),
-                'unique_ctr_all': insights_data.get('unique_ctr'),
-                'cpc_all': insights_data.get('cpc'),
-                'cpm': insights_data.get('cpm'),
-                
-                # Video metrics
-                'video_3_sec_plays': get_action_value(insights_data.get('video_continuous_2_sec_watched_actions', []), 'video_view'),
-                'video_plays_25_percent': get_action_value(insights_data.get('video_p25_watched_actions', []), 'video_view'),
-                'video_plays_50_percent': get_action_value(insights_data.get('video_p50_watched_actions', []), 'video_view'),
-                'video_plays_75_percent': get_action_value(insights_data.get('video_p75_watched_actions', []), 'video_view'),
-                'video_plays_100_percent': get_action_value(insights_data.get('video_p100_watched_actions', []), 'video_view'),
-                'video_plays': get_action_value(video_actions, 'video_view'),
-                'thru_plays': get_action_value(insights_data.get('video_thruplay_watched_actions', []), 'video_view'),
-                
-                # Conversion actions
-                'adds_to_cart': get_action_value(actions, 'add_to_cart') or get_action_value(actions, 'offsite_conversion.fb_pixel_add_to_cart'),
-                'content_views': get_action_value(actions, 'view_content') or get_action_value(actions, 'offsite_conversion.fb_pixel_view_content'),
-                'checkouts_initiated': get_action_value(actions, 'initiate_checkout') or get_action_value(actions, 'offsite_conversion.fb_pixel_initiate_checkout'),
-                'landing_page_views': get_action_value(actions, 'landing_page_view'),
-                'link_clicks': get_action_value(actions, 'link_click'),
-                'outbound_clicks': get_action_value(actions, 'outbound_click'),
-                
-                # Engagement metrics
-                'post_reactions': get_action_value(actions, 'post_reaction'),
-                'post_comments': get_action_value(actions, 'comment'),
-                'post_saves': get_action_value(actions, 'post_save'),
-                'post_shares': get_action_value(actions, 'post_share'),
-                'post_engagement': get_action_value(actions, 'post_engagement'),
-                'page_likes': get_action_value(actions, 'like'),
-                
-                # Spend
-                'amount_spent': insights_data.get('spend')
-            }
+            'video_3_sec_plays': get_action_value(insights_data.get('video_continuous_2_sec_watched_actions', []), 'video_view'),
+            'video_plays_25_percent': get_action_value(insights_data.get('video_p25_watched_actions', []), 'video_view'),
+            'video_plays_50_percent': get_action_value(insights_data.get('video_p50_watched_actions', []), 'video_view'),
+            'video_plays_75_percent': get_action_value(insights_data.get('video_p75_watched_actions', []), 'video_view'),
+            'video_plays_100_percent': get_action_value(insights_data.get('video_p100_watched_actions', []), 'video_view'),
+            'video_plays': get_action_value(video_actions, 'video_view'),
+            'thru_plays': get_action_value(insights_data.get('video_thruplay_watched_actions', []), 'video_view'),
             
-            results.append(result)
+            'adds_to_cart': get_action_value(actions, 'add_to_cart') or get_action_value(actions, 'offsite_conversion.fb_pixel_add_to_cart'),
+            'content_views': get_action_value(actions, 'view_content') or get_action_value(actions, 'offsite_conversion.fb_pixel_view_content'),
+            'checkouts_initiated': get_action_value(actions, 'initiate_checkout') or get_action_value(actions, 'offsite_conversion.fb_pixel_initiate_checkout'),
+            'landing_page_views': get_action_value(actions, 'landing_page_view'),
+            'link_clicks': get_action_value(actions, 'link_click'),
+            'outbound_clicks': get_action_value(actions, 'outbound_click'),
+            
+            'post_reactions': get_action_value(actions, 'post_reaction'),
+            'post_comments': get_action_value(actions, 'comment'),
+            'post_saves': get_action_value(actions, 'post_save'),
+            'post_shares': get_action_value(actions, 'post_share'),
+            'post_engagement': get_action_value(actions, 'post_engagement'),
+            'page_likes': get_action_value(actions, 'like'),
+            
+            'amount_spent': insights_data.get('spend')
+        }
+        results.append(result)
     
     return {
         'data': results,
@@ -679,9 +656,11 @@ def get_comprehensive_ad_report(
             'date_preset': date_preset,
             'time_range': time_range,
             'account_id': act_id,
-            'campaign_id': campaign_id
+            'campaign_id': campaign_id,
+            'min_spend_filter': min_spend
         }
     }
+
 
 # =============================================================================
 # PAGINATION HELPER

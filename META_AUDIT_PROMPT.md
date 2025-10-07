@@ -64,8 +64,8 @@ The audit should identify:
 
 **Objective:** Analyze overall account performance and identify top performers/underperformers
 
-1. **Get comprehensive ad report** for the last 30 days
-   - Use: `get_comprehensive_ad_report(act_id="act_XXXXXX", date_preset="last_30d", limit=100)`
+1. **Get summary report** for the last 30 days
+   - Use: `get_summary_report(act_id="act_XXXXXX", date_preset="last_30d", limit=100)`
 
 2. **For each campaign with spend**, get detailed insights:
    - Use: `get_campaign_insights(campaign_id="CAMPAIGN_ID", fields=["impressions", "clicks", "spend", "cpc", "cpm", "ctr", "reach", "frequency", "actions", "action_values", "cost_per_action_type", "purchase", "cost_per_purchase"], date_preset="last_30d")`
@@ -219,7 +219,7 @@ The audit should identify:
    - Day-of-week performance patterns
 
 2. **Use time_range parameter for custom periods:**
-   - Use: `get_comprehensive_ad_report(act_id="act_XXXXXX", time_range={"since":"YYYY-MM-DD","until":"YYYY-MM-DD"})`
+   - Use: `get_summary_report(act_id="act_XXXXXX", time_range={"since":"YYYY-MM-DD","until":"YYYY-MM-DD"})`
 
 3. **Document:**
    - Performance trends (improving/declining)

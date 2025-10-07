@@ -31,12 +31,7 @@ Break your audit into 10 small, independent modules:
 
 **Tool:** `get_summary_report()`
 
-Instead of:
-```
-Get comprehensive ad report for act_994348650619937
-```
-
-Use:
+Use the lightweight summary tool:
 ```
 Get summary report for act_994348650619937
 ```
@@ -55,32 +50,27 @@ Get summary report for act_994348650619937
 
 ## ✅ SOLUTION 3: Reduce Limit Parameter
 
-Instead of:
+Instead of fetching 100 ads:
 ```
-Get comprehensive ad report for act_994348650619937 (limit: 100)
+Get summary report for act_994348650619937 (limit: 100)
 ```
 
 Use:
 ```
-Get comprehensive ad report for act_994348650619937 (limit: 25)
+Get summary report for act_994348650619937 (limit: 25)
 ```
 
 **Benefit:** Fetch fewer ads at a time, analyze in batches
 
-**Best For:** When you need full detail but want to analyze smaller segments
+**Best For:** When you want to analyze smaller segments at a time
 
 ---
 
 ## ✅ SOLUTION 4: Focus on Specific Campaigns
 
-Instead of account-wide analysis:
+Use campaign-level insights instead of account-wide:
 ```
-Get comprehensive ad report for act_994348650619937
-```
-
-Target specific campaigns:
-```
-Get comprehensive ad report for campaign_6770765233220
+Get campaign insights for campaign_6770765233220 for last 30 days
 ```
 
 **Benefit:** Only fetch data for campaigns you care about
@@ -127,11 +117,11 @@ Phase 4: Create action plan based on phases 1-3
 
 | Approach | Data Returned | Context Used | Time | Best For |
 |----------|---------------|--------------|------|----------|
-| Comprehensive Report (100 ads) | ~40 fields × 100 ads | 🔴 Very High | 5 mins | Deep analysis |
+| Summary Report (100 ads) | ~8 fields × 100 ads | 🟡 Medium | 2 mins | Standard analysis |
 | Summary Report (50 ads) | ~8 fields × 50 ads | 🟢 Low | 2 mins | Quick checks |
+| Summary Report (25 ads) | ~8 fields × 25 ads | 🟢 Very Low | 1 min | Batch analysis |
 | Modular Audit | Varies by module | 🟡 Medium | 5-60 mins | Thorough analysis |
-| Campaign-specific | ~40 fields × N ads | 🟡 Medium | 3 mins | Campaign optimization |
-| Limited (25 ads) | ~40 fields × 25 ads | 🟡 Medium | 3 mins | Batch analysis |
+| Campaign Insights | Campaign-level only | 🟢 Low | 1 min | Campaign optimization |
 
 ---
 
@@ -166,29 +156,29 @@ Combine insights at the end
 ### Campaign Optimization (20 mins)
 ```
 1. Get summary report to identify underperformers
-2. Get comprehensive report for specific underperforming campaign
+2. Get campaign insights for specific underperforming campaigns
 3. Analyze ad sets and targeting
 4. Create action plan
 ```
-**Tools:** `get_summary_report()` → `get_comprehensive_ad_report(campaign_id=X)`
+**Tools:** `get_summary_report()` → `get_campaign_insights(campaign_id=X)`
 
 ---
 
 ## 🚀 QUICK COMMANDS
 
-**Lightweight:**
+**Lightweight (recommended):**
 ```
 Get summary report for act_994348650619937 for last 30 days
 ```
 
-**Comprehensive but limited:**
+**Even lighter (fewer ads):**
 ```
-Get comprehensive ad report for act_994348650619937 for last 30 days (limit: 25)
+Get summary report for act_994348650619937 for last 30 days (limit: 25)
 ```
 
 **Campaign-specific:**
 ```
-Get comprehensive ad report for campaign_6770765233220 for last 30 days
+Get campaign insights for campaign_6770765233220 for last 30 days
 ```
 
 **Module 1 only:**
@@ -202,7 +192,7 @@ Get comprehensive ad report for campaign_6770765233220 for last 30 days
 
 1. **Start with summary, drill down as needed**
    - Use `get_summary_report()` first to identify what needs deeper analysis
-   - Then use `get_comprehensive_ad_report()` on specific campaigns
+   - Then use `get_campaign_insights()` on specific campaigns for details
 
 2. **Ask Claude to summarize frequently**
    - After each module: "Summarize key findings in 3-5 bullets"
@@ -229,7 +219,7 @@ Get comprehensive ad report for campaign_6770765233220 for last 30 days
 If you still hit context limits:
 
 1. **Reduce limit further:** Try `limit: 10` or `limit: 5`
-2. **Use only summary tool:** Never use comprehensive report
+2. **Use summary tool exclusively:** Stick with `get_summary_report()` only
 3. **Analyze one campaign at a time:** Complete analysis before moving to next
 4. **Break modules into sub-modules:** Split "Top Performers" into separate requests
 5. **Restart conversation:** Start fresh with specific question

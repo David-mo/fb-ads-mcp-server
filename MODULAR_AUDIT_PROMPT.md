@@ -33,7 +33,7 @@ Please provide a quick account snapshot for act_994348650619937:
 ```
 Analyze top performers for act_994348650619937 (last 30 days):
 
-1. Get comprehensive ad report for last 30 days (limit: 50)
+1. Get summary report for last 30 days (limit: 50)
 2. Identify:
    - Top 5 campaigns by lowest CPA
    - Top 5 campaigns by highest conversion volume
@@ -57,7 +57,7 @@ Analyze top performers for act_994348650619937 (last 30 days):
 ```
 Identify underperformers and wasted spend for act_994348650619937 (last 30 days):
 
-1. Get comprehensive ad report for last 30 days
+1. Get summary report for last 30 days
 2. Find:
    - Campaigns with CPA >$50 (or your threshold)
    - Ads with >$100 spend but 0 conversions
@@ -102,7 +102,7 @@ Review budget allocation for act_994348650619937:
 ```
 Analyze creative performance for act_994348650619937 (last 30 days):
 
-1. Get comprehensive ad report (limit: 100)
+1. Get summary report (limit: 100)
 2. Count:
    - Video ads vs. static vs. carousel
    - Ads by creative format
@@ -127,8 +127,8 @@ Analyze creative performance for act_994348650619937 (last 30 days):
 ```
 Compare performance trends for act_994348650619937:
 
-1. Get comprehensive ad report for last 7 days
-2. Get comprehensive ad report for previous 7 days (use time_range)
+1. Get summary report for last 7 days
+2. Get summary report for previous 7 days (use time_range)
 3. Compare:
    - Week-over-week spend change
    - Week-over-week conversion change
@@ -173,7 +173,7 @@ Deep dive into [CAMPAIGN_NAME] for act_994348650619937:
 ```
 Analyze the conversion funnel for act_994348650619937 (last 30 days):
 
-1. Get comprehensive ad report with all action fields
+1. Get summary report with all action fields
 2. Map the funnel:
    - Impressions → Clicks (CTR)
    - Clicks → Landing Page Views

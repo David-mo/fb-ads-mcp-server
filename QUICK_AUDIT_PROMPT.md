@@ -14,7 +14,7 @@ Please conduct a comprehensive Meta Ads account audit for **act_994348650619937*
 
 ## PART 2: PERFORMANCE ANALYSIS
 
-4. Get the comprehensive ad report for the last 30 days
+4. Get the summary report for the last 30 days
 5. For each active campaign, get detailed insights including:
    - Impressions, clicks, spend
    - CTR, CPC, CPM
