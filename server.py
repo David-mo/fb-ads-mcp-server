@@ -3,6 +3,8 @@ Facebook Ads MCP Server
 
 A Model Context Protocol server that connects AI assistants to Facebook's Ads API.
 Enables natural language queries to fetch campaign data, insights, and ad performance metrics.
+
+Supports both local (stdio) and remote (SSE) deployment.
 """
 
 from mcp.server.fastmcp import FastMCP
@@ -10,6 +12,7 @@ import requests
 from typing import Dict, List, Optional, Any
 import sys
 import json
+import os
 
 # Constants
 FB_API_VERSION = "v22.0"
@@ -24,8 +27,12 @@ FB_ACCESS_TOKEN = None
 
 def _get_fb_access_token() -> str:
     """
-    Get Facebook access token from command line arguments.
+    Get Facebook access token from environment variable or command line arguments.
     Cache in memory after first read.
+    
+    Priority:
+    1. Environment variable FB_ACCESS_TOKEN (for Railway/cloud deployment)
+    2. Command line argument --fb-token (for local use)
     
     Expects: python server.py --fb-token YOUR_TOKEN
     
@@ -33,25 +40,29 @@ def _get_fb_access_token() -> str:
         str: Facebook access token
         
     Raises:
-        ValueError: If token is not provided via command line arguments
+        ValueError: If token is not provided
     """
     global FB_ACCESS_TOKEN
     
     if FB_ACCESS_TOKEN is None:
-        # Parse --fb-token from sys.argv
-        try:
-            token_index = sys.argv.index('--fb-token')
-            if token_index + 1 < len(sys.argv):
-                FB_ACCESS_TOKEN = sys.argv[token_index + 1]
-            else:
-                raise ValueError("--fb-token flag provided but no token value found")
-        except ValueError as e:
-            if "--fb-token" in str(e):
-                raise e
-            raise ValueError(
-                "Facebook access token not provided. "
-                "Please run with: python server.py --fb-token YOUR_TOKEN"
-            )
+        # Priority 1: Check environment variable (for cloud deployment)
+        FB_ACCESS_TOKEN = os.environ.get('FB_ACCESS_TOKEN')
+        
+        # Priority 2: Parse --fb-token from sys.argv (for local use)
+        if not FB_ACCESS_TOKEN:
+            try:
+                token_index = sys.argv.index('--fb-token')
+                if token_index + 1 < len(sys.argv):
+                    FB_ACCESS_TOKEN = sys.argv[token_index + 1]
+                else:
+                    raise ValueError("--fb-token flag provided but no token value found")
+            except ValueError as e:
+                if "--fb-token" in str(e):
+                    raise e
+                raise ValueError(
+                    "Facebook access token not provided. "
+                    "Set FB_ACCESS_TOKEN environment variable or run with: python server.py --fb-token YOUR_TOKEN"
+                )
         
         # Validate token is not empty
         if not FB_ACCESS_TOKEN or FB_ACCESS_TOKEN.strip() == '':
@@ -702,8 +713,34 @@ def fetch_pagination_url(url: str) -> Dict:
 # =============================================================================
 
 if __name__ == "__main__":
-    # FastMCP will handle the MCP protocol
-    mcp.run()
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Facebook Ads MCP Server')
+    parser.add_argument('--fb-token', type=str, help='Facebook access token')
+    parser.add_argument('--transport', type=str, choices=['stdio', 'sse'], default='stdio',
+                       help='Transport mode: stdio (local) or sse (remote)')
+    parser.add_argument('--port', type=int, default=8000,
+                       help='Port for SSE server (default: 8000)')
+    parser.add_argument('--host', type=str, default='0.0.0.0',
+                       help='Host for SSE server (default: 0.0.0.0)')
+    
+    args = parser.parse_args()
+    
+    # Validate token is available (from env or args)
+    try:
+        _get_fb_access_token()
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Run with appropriate transport
+    if args.transport == 'sse':
+        print(f"🚀 Starting Facebook Ads MCP Server in SSE mode on {args.host}:{args.port}")
+        print(f"📡 Connect your Claude Desktop to: http://{args.host}:{args.port}/sse")
+        mcp.run(transport='sse', host=args.host, port=args.port)
+    else:
+        # Default stdio mode for local use
+        mcp.run()
 
 
 
